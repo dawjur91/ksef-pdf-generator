@@ -3,7 +3,9 @@ import {
   createHeader,
   createLabelText,
   formatText,
+  generateColumns,
   getTable,
+  getValue,
   hasValue,
   verticalSpacing,
 } from '../../../shared/PDF-functions';
@@ -130,7 +132,7 @@ export function generateAdnotacje(adnotacje?: Adnotacje): Content[] {
       addToColumn(firstColumn, secondColumn, { text: 'Samofakturowanie' });
     }
     if (firstColumn.length || secondColumn.length) {
-      result.push({ columns: [firstColumn, secondColumn], columnGap: 20 });
+      result.push(generateColumns([firstColumn, secondColumn]));
     }
 
     if (result.length) {
@@ -198,6 +200,19 @@ export function generateDostawy(noweSrodkiTransportu: NoweSrodkiTransportu): Con
       } else if (anyP22D) {
         value.push('Dostawa dotyczy statków powietrznych, o których mowa w art. 2 pkt 10 lit. c ustawy');
       }
+
+      const transportProperties = [
+        getValue(item.P_22BMK),
+        getValue(item.P_22BMD),
+        getValue(item.P_22BK),
+        getValue(item.P_22BNR),
+        getValue(item.P_22BRP),
+      ].filter((prop) => !!prop);
+
+      if (transportProperties.length) {
+        value.push(transportProperties.join(', '));
+      }
+
       if (item.DetailsString?._text) {
         value.push(item.DetailsString._text);
       }

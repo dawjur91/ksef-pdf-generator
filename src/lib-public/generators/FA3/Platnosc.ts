@@ -49,7 +49,7 @@ export function generatePlatnosc(platnosc: Platnosc | undefined): Content {
   //  TODO: Add to FA2 and FA1? (KSEF20-15289)
   if (getValue(platnosc.Zaplacono) === '1') {
     table.push(createLabelText('Informacja o płatności: ', 'Zapłacono'));
-    table.push(createLabelText('Data zapłaty: ', platnosc.DataZaplaty));
+    table.push(createLabelText('Data zapłaty: ', platnosc.DataZaplaty, FormatTyp.Date));
   } else if (
     getValue(platnosc.ZnacznikZaplatyCzesciowej) === '1' ||
     getValue(platnosc.ZnacznikZaplatyCzesciowej) === '2'
@@ -80,7 +80,9 @@ export function generatePlatnosc(platnosc: Platnosc | undefined): Content {
   const tableZaplataCzesciowa = getContentTable<(typeof zaplataCzesciowa)[0]>(
     zaplataCzesciowaNaglowek,
     zaplataCzesciowa,
-    '*'
+    '*',
+    undefined,
+    20
   );
   const terminPatnosciContent = terminPlatnosci.map((platnosc) => {
     if (!terminPlatnosci.some((termin) => termin.TerminOpis)) {
@@ -98,7 +100,9 @@ export function generatePlatnosc(platnosc: Platnosc | undefined): Content {
   const tableTerminPlatnosci = getContentTable<(typeof terminPlatnosci)[0]>(
     zaplataCzesciowaHeader,
     terminPatnosciContent,
-    '*'
+    '*',
+    undefined,
+    20
   );
 
   if (zaplataCzesciowa.length > 0 && terminPlatnosci.length > 0) {
@@ -125,7 +129,7 @@ export function generatePlatnosc(platnosc: Platnosc | undefined): Content {
     } as ContentText);
   }
   if (platnosc.IPKSeF?._text) {
-    createLabelText('Identyfikator płatności Krajowego Systemu e-Faktur: ', platnosc.IPKSeF);
+    table.push(createLabelText('Identyfikator płatności Krajowego Systemu e-Faktur: ', platnosc.IPKSeF));
   }
 
   table.push(

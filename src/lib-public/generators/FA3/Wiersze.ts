@@ -6,22 +6,27 @@ import {
   formatText,
   getContentTable,
   getTable,
+  getTStawkaPodatku,
   getValue,
 } from '../../../shared/PDF-functions';
 import { HeaderDefine } from '../../../shared/types/pdf-types';
 import { TRodzajFaktury } from '../../../shared/consts/const';
 import { Fa, FP } from '../../types/fa3.types';
 import FormatTyp, { Position } from '../../../shared/enums/common.enum';
-import { shouldAddMarza } from '../common/Wiersze';
+import { addMarza } from '../common/Wiersze';
 
 export function generateWiersze(faVat: Fa): Content {
   const table: Content[] = [];
   const rodzajFaktury: string | number | undefined = getValue(faVat.RodzajFaktury);
-  const isP_PMarzy: boolean = Boolean(Number(getValue(faVat.Adnotacje?.PMarzy?.P_PMarzy)));
+  const isP_PMarzy = Boolean(Number(getValue(faVat.Adnotacje?.PMarzy?.P_PMarzy)));
   const faWiersze: Record<string, FP>[] = getTable(faVat.FaWiersz).map(
     (wiersz: Record<string, FP>): Record<string, FP> => {
-      const marza: Record<string, FP> = shouldAddMarza(rodzajFaktury, isP_PMarzy, wiersz)!;
-      return marza ? { ...wiersz, ...marza } : wiersz;
+      const marza: Record<string, FP> = addMarza(rodzajFaktury, isP_PMarzy, wiersz)!;
+      
+      if (getValue(wiersz.P_12)) {
+        wiersz.P_12._text = getTStawkaPodatku(getValue(wiersz.P_12) as string, 3);
+      }
+      return { ...wiersz, ...marza };
     }
   );
   const definedHeaderLp: HeaderDefine[] = [
@@ -32,7 +37,7 @@ export function generateWiersze(faVat: Fa): Content {
     { name: 'P_7', title: 'Nazwa towaru lub usługi', format: FormatTyp.Default, width: '*' },
     { name: 'P_9A', title: 'Cena jedn. netto', format: FormatTyp.Currency, width: 'auto' },
     { name: 'P_9B', title: 'Cena jedn. brutto', format: FormatTyp.Currency, width: 'auto' },
-    { name: 'P_8B', title: 'Ilość', format: FormatTyp.Right, width: 'auto' },
+    { name: 'P_8B', title: 'Ilość', format: FormatTyp.Number, width: 'auto' },
     { name: 'P_8A', title: 'Miara', format: FormatTyp.Default, width: 'auto' },
     { name: 'P_10', title: 'Rabat', format: FormatTyp.Currency, width: 'auto' },
     { name: 'P_12', title: 'Stawka podatku', format: FormatTyp.Default, width: 'auto' },
@@ -43,9 +48,9 @@ export function generateWiersze(faVat: Fa): Content {
       format: FormatTyp.Default,
       width: 'auto',
     },
-    { name: 'P_11', title: 'Wartość sprzedaży netto', format: FormatTyp.Currency, width: 'auto' },
-    { name: 'P_11A', title: 'Wartość sprzedaży brutto', format: FormatTyp.Currency, width: 'auto' },
-    { name: 'P_11Vat', title: 'Wartość sprzedaży vat', format: FormatTyp.Currency, width: 'auto' },
+    { name: 'P_11', title: 'Wartość netto', format: FormatTyp.Currency, width: 'auto' },
+    { name: 'P_11A', title: 'Wartość brutto', format: FormatTyp.Currency, width: 'auto' },
+    { name: 'P_11Vat', title: 'Wartość vat', format: FormatTyp.Currency, width: 'auto' },
     { name: 'KursWaluty', title: 'Kurs waluty', format: FormatTyp.Currency6, width: 'auto' },
     { name: 'StanPrzed', title: 'Stan przed', format: FormatTyp.Boolean, width: 'auto' },
     { name: 'Indeks', title: 'Indeks', format: FormatTyp.Default, width: 'auto' }
@@ -106,7 +111,7 @@ export function generateWiersze(faVat: Fa): Content {
       margin: [0, 8, 0, 0],
     };
   }
-  if (content.fieldsWithValue.length <= 9 && content.content) {
+  if (content.fieldsWithValue.length <= 10 && content.content) {
     table.push(content.content);
   } else {
     content = getContentTable<(typeof faWiersze)[0]>([...definedHeaderLp, ...definedHeader1], faWiersze, '*');

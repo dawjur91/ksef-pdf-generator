@@ -10,8 +10,14 @@ import {
   TableCell,
   TDocumentDefinitions,
 } from 'pdfmake/interfaces';
-import { DEFAULT_TABLE_LAYOUT, Kraj } from './consts/const';
-import { formatDateTime, getFormaPlatnosciString } from './generators/common/functions';
+import {
+  DEFAULT_TABLE_LAYOUT,
+  Kraj,
+  TStawkaPodatku_FA1,
+  TStawkaPodatku_FA2,
+  TStawkaPodatku_FA3,
+} from './consts/const';
+import {formatDateTime, formatTime, getFormaPlatnosciString} from './generators/common/functions';
 import { HeaderDefine, PdfFP, PdfOptionField } from './types/pdf-types';
 import { FP } from '../lib-public/types/fa3.types';
 import { DifferentValues, FilteredKeysOfValues, TypesOfValues } from './types/universal.types';
@@ -75,21 +81,27 @@ function formatValue(
 ): void {
   switch (item) {
     case FormatTyp.Currency:
-      result.text = isNaN(Number(value)) ? (value as string) : `${Number(value).toFixed(2)} ${currency}`;
+      result.text = isNaN(Number(value))
+        ? (value as string)
+        : `${normalizeCurrencySeparator(value)} ${currency}`;
       result.alignment = Position.RIGHT;
       break;
     case FormatTyp.CurrencyAbs:
       result.text = isNaN(Number(value))
         ? (value as string)
-        : `${Math.abs(Number(value)).toFixed(2)} ${currency}`;
+        : `${dotToComma(Math.abs(Number(value)).toFixed(2))} ${currency}`;
       result.alignment = Position.RIGHT;
       break;
     case FormatTyp.CurrencyGreater:
-      result.text = isNaN(Number(value)) ? (value as string) : `${Number(value).toFixed(2)} ${currency}`;
+      result.text = isNaN(Number(value))
+        ? (value as string)
+        : `${dotToComma(Number(value).toFixed(2))} ${currency}`;
       result.fontSize = 10;
       break;
     case FormatTyp.Currency6:
-      result.text = isNaN(Number(value)) ? (value as string) : `${Number(value).toFixed(6)} ${currency}`;
+      result.text = isNaN(Number(value))
+        ? (value as string)
+        : `${dotToComma(Number(value).toFixed(6))} ${currency}`;
       result.alignment = Position.RIGHT;
       break;
     case FormatTyp.DateTime:
@@ -97,6 +109,9 @@ function formatValue(
       break;
     case FormatTyp.Date:
       result.text = formatDateTime(value as string, false, true);
+      break;
+    case FormatTyp.Time:
+      result.text = formatTime(value as string);
       break;
     case FormatTyp.FormOfPayment:
       result.text = getFormaPlatnosciString({ _text: value as string });
@@ -107,7 +122,45 @@ function formatValue(
     case FormatTyp.Percentage:
       result.text = `${value}%`;
       break;
+    case FormatTyp.Number:
+      result.text = replaceDotWithCommaIfNeeded(value);
+      result.alignment = Position.RIGHT;
+      break;
   }
+}
+
+export function normalizeCurrencySeparator(value: string | number | undefined): string {
+  if (!value) {
+    return '';
+  }
+
+  const numberWithComma = dotToComma(typeof value === 'string' ? value : value.toString());
+
+  if (numberWithComma.includes(',')) {
+    const parts = numberWithComma.split(',');
+
+    return parts[1].length > 1 ? numberWithComma : numberWithComma + '0';
+  } else {
+    return numberWithComma + ',00';
+  }
+}
+
+export function replaceDotWithCommaIfNeeded(value: string | number | undefined): string {
+  let copyValue = '';
+
+  if (typeof value === 'number') {
+    copyValue = value.toString();
+  }
+
+  if (typeof value === 'string') {
+    copyValue = value;
+  }
+
+  return copyValue.includes('.') ? dotToComma(copyValue) : copyValue;
+}
+
+function dotToComma(value: string): string {
+  return value.replace('.', ',');
 }
 
 export function hasValue(value: FP | string | number | undefined): boolean {
@@ -356,7 +409,8 @@ export function getContentTable<T>(
   headers: HeaderDefine[],
   data: T[],
   defaultWidths: string,
-  margin?: Margins
+  margin?: Margins,
+  wordBreak?: number
 ): { content: ContentTable | null; fieldsWithValue: string[] } {
   const fieldsWithValue: HeaderDefine[] = headers.filter((header: HeaderDefine): boolean => {
     return data.some((d: T): boolean => {
@@ -392,7 +446,10 @@ export function getContentTable<T>(
       const value: string | undefined = typeof fp === 'object' ? fp?._text : fp;
 
       return formatText(
-        header.mappingData && value ? header.mappingData[value] : (value ?? ''),
+        makeBreakable(
+          header.mappingData && value ? header.mappingData[value] : (value ?? ''),
+          wordBreak ?? 40
+        ),
         header.format ?? FormatTyp.Default,
         { rowSpan: fp?._rowSpan ?? 1 }
       );
@@ -417,10 +474,22 @@ export function getContentTable<T>(
 export function generateTwoColumns(kol1: Column, kol2: Column, margin?: Margins): Content {
   return {
     columns: [
-      { stack: [kol1], margin: [0, 0, 5, 0] },
-      { stack: [kol2], margin: [5, 0, 0, 0] },
+      { stack: [kol1], width: '50%' },
+      { stack: [kol2], width: '50%' },
     ],
     margin: margin ?? [0, 0, 0, 0],
+    columnGap: 20,
+  };
+}
+
+export function generateColumns(contents: Content[][], style: Style | undefined = undefined): Content {
+  const width: string = (100 / contents.length).toFixed(0) + '%';
+  const columns: Column = contents.map((content: Content[]) => ({ stack: content, width }));
+  const columnStyle: Style = style ? { ...style } : { columnGap: 20 };
+
+  return {
+    columns,
+    ...columnStyle,
   };
 }
 
@@ -440,11 +509,32 @@ export function verticalSpacing(height: number): ContentText {
   return { text: '\n', fontSize: height };
 }
 
-export function getKraj(kod: string): string {
-  if (Kraj[kod]) {
-    return Kraj[kod];
+export function getKraj(code: string): string {
+  if (Kraj[code]) {
+    return Kraj[code];
   }
-  return kod;
+  return code;
+}
+
+export function getTStawkaPodatku(code: string, version: 1 | 2 | 3): string {
+  let TStawkaPodatkuVersioned: Record<string, string> = {};
+
+  switch (version) {
+    case 1:
+      TStawkaPodatkuVersioned = TStawkaPodatku_FA1;
+      break;
+    case 2:
+      TStawkaPodatkuVersioned = TStawkaPodatku_FA2;
+      break;
+    case 3:
+      TStawkaPodatkuVersioned = TStawkaPodatku_FA3;
+      break;
+  }
+
+  if (TStawkaPodatkuVersioned[code]) {
+    return TStawkaPodatkuVersioned[code];
+  }
+  return code;
 }
 
 export function generateLine(): Content {
@@ -463,4 +553,14 @@ export function generateLine(): Content {
       paddingBottom: (): number => 0,
     } as CustomTableLayout,
   };
+}
+
+export function makeBreakable(
+  value: string | number | undefined,
+  wordBreak = 40
+): string | number | undefined {
+  if (typeof value === 'string') {
+    return value.replace(new RegExp(`(.{${wordBreak}})`, 'g'), '$1\u200B');
+  }
+  return value;
 }
